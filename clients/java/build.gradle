@@ -1,0 +1,68 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'mil.army.usace'
+archivesBaseName = 'cc-sdk'
+version = '2.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+    withSourcesJar()
+    withJavadocJar()
+}
+
+// Zero external dependencies — JDK only
+
+// The bundleNatives task copies pre-built cc-sdk binaries into
+// src/main/resources/natives/ so they get included in the JAR.
+// CI runs this before `jar` with binaries from the build matrix.
+tasks.register('bundleNatives', Copy) {
+    description = 'Copy cc-sdk binaries into resources for JAR packaging'
+    from(project.findProperty('nativesDir') ?: 'natives-staging')
+    into('src/main/resources/natives')
+    include('cc-sdk-*')
+}
+
+tasks.named('processResources') {
+    dependsOn 'bundleNatives'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'mil.army.usace'
+            artifactId = 'cc-sdk'
+            from components.java
+
+            pom {
+                name = 'cc-sdk'
+                description = 'Java client for the USACE Cloud Compute SDK'
+                url = 'https://github.com/USACE/cc-go-sdk'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+                scm {
+                    url = 'https://github.com/USACE/cc-go-sdk'
+                    connection = 'scm:git:git://github.com/USACE/cc-go-sdk.git'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/USACE/cc-go-sdk")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: ""
+                password = System.getenv("GITHUB_TOKEN") ?: ""
+            }
+        }
+    }
+}

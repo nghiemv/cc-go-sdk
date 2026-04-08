@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cc-sdk-tiledb"
+version = "2.0.0"
+description = "TileDB event store integration for the USACE Cloud Compute SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "USACE Cloud Compute", email = "randal.s.goss@usace.army.mil"},
+]
+keywords = ["usace", "cloud-compute", "cc-sdk", "tiledb"]
+dependencies = [
+    "cc-sdk>=2.0.0",
+    "tiledb>=0.25.0",
+]
+
+[project.urls]
+Repository = "https://github.com/USACE/cc-go-sdk"
+
+[tool.setuptools]
+py-modules = ["cc_tiledb"]
