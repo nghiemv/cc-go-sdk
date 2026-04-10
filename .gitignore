@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+/cc-sdk
+/cc-sdk-*
 
 # Test binary, built with `go test -c`
 *.test
@@ -14,4 +16,6 @@ main
 /data
 payload.json
 # Dependency directories (remove the comment below to include it)
-# vendor/
+# vendor/*.pyc
+
+__pycache__/

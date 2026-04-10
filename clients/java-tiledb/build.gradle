@@ -1,0 +1,53 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'mil.army.usace'
+archivesBaseName = 'cc-sdk-tiledb'
+version = '2.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+    withSourcesJar()
+    withJavadocJar()
+}
+
+dependencies {
+    api 'mil.army.usace:cc-sdk:2.0.0'
+    api 'io.tiledb:tiledb-java:0.25.0'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'mil.army.usace'
+            artifactId = 'cc-sdk-tiledb'
+            from components.java
+
+            pom {
+                name = 'cc-sdk-tiledb'
+                description = 'TileDB event store integration for the USACE Cloud Compute SDK'
+                url = 'https://github.com/USACE/cc-go-sdk'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/USACE/cc-go-sdk")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: ""
+                password = System.getenv("GITHUB_TOKEN") ?: ""
+            }
+        }
+    }
+}
