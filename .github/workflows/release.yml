@@ -184,7 +184,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           # Gradle's bundleNatives task copies from nativesDir into resources
-          gradle jar -PnativesDir=${{ github.workspace }}/natives-staging
+          ./gradlew jar -PnativesDir=${{ github.workspace }}/natives-staging
 
       - name: Publish to GitHub Packages
         working-directory: clients/java
@@ -192,7 +192,7 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: gradle publish
+        run: ./gradlew publish
 
       - name: Append JAR to GitHub Release
         uses: softprops/action-gh-release@v2

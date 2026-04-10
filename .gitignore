@@ -19,3 +19,7 @@ payload.json
 # vendor/*.pyc
 
 __pycache__/
+
+# Gradle build outputs and caches (wrapper files ARE tracked)
+clients/java/.gradle/
+clients/java/build/

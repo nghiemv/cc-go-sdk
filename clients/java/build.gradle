@@ -14,8 +14,11 @@ def ghRepo = System.getenv('GITHUB_REPOSITORY') ?: 'USACE/cc-go-sdk'
 // coexist on a classpath with upstream) can set MAVEN_GROUP in their
 // workflow env, e.g. MAVEN_GROUP=io.github.nghiem.
 group = System.getenv('MAVEN_GROUP') ?: 'mil.army.usace'
-archivesBaseName = 'cc-sdk'
 version = '2.0.0'
+
+base {
+    archivesName = 'cc-sdk'
+}
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
