@@ -91,8 +91,25 @@ func (fds *FileDataStore[T]) Connect(ds DataStore) (any, error) {
 			return nil, errors.New("missing s3 root parameter.  cannot create the store")
 		}
 	case FSB:
-		//no need to connect for a file store
-		return nil, nil
+		// Instantiate a BlockFS-backed FileStore so the session satisfies
+		// FileDataStoreInterface and the payload IO manager can Get/Put/Walk
+		// against a real local filesystem. Prior to this the FSB branch
+		// returned (nil, nil), which silently produced a DataStore whose
+		// Session was nil — all first-use FSB I/O would crash with a nil
+		// session type assertion. Mirrors the FSS3 branch semantics.
+		fs, err := filestore.NewFileStore(filestore.BlockFSConfig{})
+		if err != nil {
+			return nil, err
+		}
+		root, ok := ds.Parameters[S3ROOT]
+		if !ok {
+			return nil, errors.New("missing root parameter. cannot create the FSB store")
+		}
+		rootstr, ok := root.(string)
+		if !ok {
+			return nil, errors.New("invalid FSB root parameter. parameter must be a string")
+		}
+		return &FileDataStore[T]{fs, rootstr}, nil
 	}
 
 	//unsupported type
