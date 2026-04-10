@@ -103,46 +103,20 @@ jobs:
           path: clients/python/dist/*.whl
 
   # -----------------------------------------------------------
-  # Step 3: GitHub Release with raw binaries + Python wheels
-  #
-  # Consumers install the Python client via:
-  #   pip install \
-  #     --find-links https://github.com/${{ github.repository }}/releases/expanded_assets/vX.Y.Z \
-  #     cc-sdk==X.Y.Z
-  #
-  # Works in forks automatically — the release lives on whichever
-  # repo pushed the tag, so fork tags publish to fork releases.
-  # -----------------------------------------------------------
-  github-release:
-    name: GitHub Release
-    needs: [build-binary, build-wheels]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: binary-*
-          path: release-assets
-          merge-multiple: true
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: wheel-*
-          path: release-assets
-          merge-multiple: true
-
-      - name: List release assets
-        run: ls -la release-assets/
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/*
-          generate_release_notes: true
-
-  # -----------------------------------------------------------
-  # Step 4: Publish Java JAR to GitHub Packages (Maven)
+  # Step 3: Build + publish Java JAR to GitHub Packages (Maven)
   #
   # JAR includes all platform binaries in resources/natives/.
   # CcSdk.java auto-extracts the right one at runtime.
+  #
+  # Depends on build-wheels too (not just build-binary) so that
+  # a wheel failure aborts the pipeline BEFORE we publish to
+  # Maven. GitHub Packages does not allow overwriting a version,
+  # so we only want to publish once we know every other artifact
+  # is in good shape.
+  #
+  # Also uploads the JAR as a workflow artifact so the terminal
+  # github-release job can attach it to the release without
+  # rebuilding.
   #
   # Maven coordinates and URLs are parameterized via env so a
   # fork publishes to its own repo's GitHub Packages without
@@ -151,17 +125,13 @@ jobs:
   #     maven { url "https://maven.pkg.github.com/<owner>/cc-go-sdk" }
   #   }
   #   dependencies { implementation 'mil.army.usace:cc-sdk:2.0.0' }
-  #
-  # Runs after github-release so the JAR appends to the existing
-  # release rather than racing to create it.
   # -----------------------------------------------------------
   publish-java:
     name: Maven cc-sdk
-    needs: github-release
+    needs: [build-binary, build-wheels]
     runs-on: ubuntu-latest
     permissions:
       packages: write
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -194,7 +164,56 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: ./gradlew publish
 
-      - name: Append JAR to GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload JAR artifact for github-release
+        uses: actions/upload-artifact@v4
         with:
-          files: clients/java/build/libs/cc-sdk-*.jar
+          name: jar
+          path: clients/java/build/libs/cc-sdk-*.jar
+
+  # -----------------------------------------------------------
+  # Step 4: GitHub Release — TERMINAL STEP
+  #
+  # Runs LAST, only after every build and publish step has
+  # succeeded. This is intentional: if publish-java fails
+  # (Maven auth, Gradle crash, whatever), github-release is
+  # skipped and no release is created, so a failed build never
+  # produces a half-published release. The user can delete the
+  # tag, fix the problem, and retag cleanly.
+  #
+  # Consumers install the Python client via:
+  #   pip install \
+  #     --find-links https://github.com/${{ github.repository }}/releases/expanded_assets/vX.Y.Z \
+  #     cc-sdk==X.Y.Z
+  #
+  # Works in forks automatically — the release lives on whichever
+  # repo pushed the tag, so fork tags publish to fork releases.
+  # -----------------------------------------------------------
+  github-release:
+    name: GitHub Release
+    needs: [build-binary, build-wheels, publish-java]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: release-assets
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: release-assets
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jar
+          path: release-assets
+
+      - name: List release assets
+        run: ls -la release-assets/
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
