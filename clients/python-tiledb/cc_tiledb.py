@@ -58,5 +58,4 @@ def open_event_store(payload: Payload, store_name: str) -> EventStore:
     """
     creds = payload.get_store_credentials(store_name)
     store = payload.get_store(store_name)
-    root = store.params.get("root", "") if hasattr(store.params, "get") else store.params["root"]
-    return EventStore(creds, root)
+    return EventStore(creds, store.params.get("root", ""))
