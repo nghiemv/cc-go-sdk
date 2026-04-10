@@ -14,7 +14,14 @@ def ghRepo = System.getenv('GITHUB_REPOSITORY') ?: 'USACE/cc-go-sdk'
 // coexist on a classpath with upstream) can set MAVEN_GROUP in their
 // workflow env, e.g. MAVEN_GROUP=io.github.nghiem.
 group = System.getenv('MAVEN_GROUP') ?: 'mil.army.usace'
-version = '2.0.0'
+// Version is derived from the JAR_VERSION env var so each release can
+// publish a unique Maven coordinate. GitHub Packages rejects re-publish
+// of an existing Maven version with HTTP 409; hardcoding version caused
+// every second release on a given major.minor.patch (e.g. v2.0.0-fork.4
+// after v2.0.0-fork.3) to fail at the publish step. CI derives this from
+// the git tag (stripping the leading 'v'). Fallback 2.0.0 is for local
+// builds where no JAR_VERSION is set.
+version = System.getenv('JAR_VERSION') ?: '2.0.0'
 
 base {
     archivesName = 'cc-sdk'
