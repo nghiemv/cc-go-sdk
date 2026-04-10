@@ -71,13 +71,16 @@ type CcStoreInput struct {
 	PayloadId      string
 }
 
-// func NewCcStore(ccStoreProfile string, manifestArgs ...string) (CcStore, error) {
+// NewCcStore constructs a CcStore backed by the store type specified by the
+// CC_STORE_TYPE env var. Defaults to S3 when unset. The FSB ("FS") branch was
+// accidentally stubbed out in commit 7076c19 — see ccstore_fsb.go and the
+// revival PR for context.
 func NewCcStore(input *CcStoreInput) (CcStore, error) {
 	storeType := os.Getenv(CcStoreType)
 
 	switch StoreType(storeType) {
-	// case FSB:
-	// 	return NewFSBCcStore(manifestArgs...)
+	case FSB:
+		return NewFSBCcStore(input)
 	case FSS3, "": // Default to S3 if no store type specified
 		return NewS3CcStore(input)
 	default:

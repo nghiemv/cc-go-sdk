@@ -470,6 +470,18 @@ func writeFileToRemote(fs filesapi.FileStore, localPath string, remoteAbsolutePa
 		return err
 	}
 
+	// When the backing filestore is a BlockFS (FSB store type), the parent
+	// directory for remoteAbsolutePath must exist before BlockFS.PutObject's
+	// os.OpenFile(..., O_RDWR|O_CREATE) call, otherwise the open fails with
+	// "no such file or directory". filesapi's BlockFS intentionally does not
+	// MkdirAll on put, so we do it here for FSB-backed stores. S3FS does not
+	// need this and must not be touched — remote keys are not local paths.
+	if _, ok := fs.(*filesapi.BlockFS); ok {
+		if err := os.MkdirAll(filepath.Dir(remoteAbsolutePath), 0o755); err != nil {
+			return err
+		}
+	}
+
 	_, err = fs.PutObject(filesapi.PutObjectInput{
 		Source: filesapi.ObjectSource{
 			Reader: reader,
