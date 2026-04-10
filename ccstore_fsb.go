@@ -18,13 +18,23 @@ type FSBCcStore struct {
 	storeType      StoreType
 }
 
-// NewFSBCcStore creates a new FSB CcStore instance
-func NewFSBCcStore(manifestArgs ...string) (CcStore, error) {
+// NewFSBCcStore creates a new FSB CcStore instance.
+//
+// The input mirrors NewS3CcStore's contract:
+//   - if input is non-nil, manifestId / payloadId are taken from it;
+//   - otherwise the CC_MANIFEST_ID and CC_PAYLOAD_ID env vars are used.
+//
+// The filesystem root is always read from the FSB_ROOT_PATH env var
+// (defaulting to "/data"), matching cc-java-sdk's CcStoreLocal behavior.
+// CcStoreProfile is accepted for symmetry with the S3 store but is currently
+// unused by the FSB backend — there is no concept of a credentials profile
+// for a mounted filesystem.
+func NewFSBCcStore(input *CcStoreInput) (CcStore, error) {
 	var manifestId string
 	var payloadId string
-	if len(manifestArgs) > 1 {
-		manifestId = manifestArgs[0]
-		payloadId = manifestArgs[1]
+	if input != nil {
+		manifestId = input.ManifestId
+		payloadId = input.PayloadId
 	} else {
 		manifestId = os.Getenv(CcManifestId)
 		payloadId = os.Getenv(CcPayloadId)
@@ -35,7 +45,10 @@ func NewFSBCcStore(manifestArgs ...string) (CcStore, error) {
 		rootPath = "/data" // default local root path
 	}
 
-	// Ensure the root directory exists
+	// Ensure the root directory exists. cc-java-sdk's CcStoreLocal
+	// likewise creates the root if missing, so cross-language semantics
+	// match: a plugin can start with an empty FSB_ROOT_PATH and let the
+	// store bootstrap it.
 	if err := os.MkdirAll(rootPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create root directory: %w", err)
 	}
