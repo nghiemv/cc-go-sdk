@@ -3,7 +3,17 @@ plugins {
     id 'maven-publish'
 }
 
-group = 'mil.army.usace'
+// Fork-aware publishing: all GitHub URLs derive from GITHUB_REPOSITORY
+// (auto-set by Actions to "<owner>/<repo>") so a fork tag publishes to
+// its own GitHub Packages without editing this file. Fallback is the
+// upstream repo for local builds.
+def ghRepo = System.getenv('GITHUB_REPOSITORY') ?: 'USACE/cc-go-sdk'
+
+// Maven group defaults to the upstream coordinate so upstream releases
+// stay binary-compatible. Forks that want a distinct coordinate (to
+// coexist on a classpath with upstream) can set MAVEN_GROUP in their
+// workflow env, e.g. MAVEN_GROUP=io.github.nghiem.
+group = System.getenv('MAVEN_GROUP') ?: 'mil.army.usace'
 archivesBaseName = 'cc-sdk'
 version = '2.0.0'
 
@@ -40,7 +50,7 @@ publishing {
             pom {
                 name = 'cc-sdk'
                 description = 'Java client for the USACE Cloud Compute SDK'
-                url = 'https://github.com/USACE/cc-go-sdk'
+                url = "https://github.com/${ghRepo}"
                 licenses {
                     license {
                         name = 'MIT License'
@@ -48,8 +58,8 @@ publishing {
                     }
                 }
                 scm {
-                    url = 'https://github.com/USACE/cc-go-sdk'
-                    connection = 'scm:git:git://github.com/USACE/cc-go-sdk.git'
+                    url = "https://github.com/${ghRepo}"
+                    connection = "scm:git:git://github.com/${ghRepo}.git"
                 }
             }
         }
@@ -58,7 +68,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/USACE/cc-go-sdk")
+            url = uri("https://maven.pkg.github.com/${ghRepo}")
             credentials {
                 username = System.getenv("GITHUB_ACTOR") ?: ""
                 password = System.getenv("GITHUB_TOKEN") ?: ""
