@@ -146,12 +146,28 @@ jobs:
           path: natives-staging
           merge-multiple: true
 
+      # Derive the Maven publication version from the git tag so every
+      # release publishes a unique coordinate. GitHub Packages rejects
+      # re-publish of an existing Maven version with HTTP 409; without
+      # this, releases after the first successful Maven publish would
+      # always fail at the publish step (e.g. v2.0.0-fork.4 hit 409
+      # because v2.0.0-fork.3 already owned cc-sdk-2.0.0.jar). ref_name
+      # for a tag event is the tag itself — we strip the leading "v" so
+      # the artifact reads "cc-sdk-2.0.0-fork.5.jar".
+      - name: Compute JAR version
+        id: jarver
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          echo "jar_version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "Publishing JAR as version ${ver}"
+
       - name: Build JAR with bundled binaries
         working-directory: clients/java
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          JAR_VERSION: ${{ steps.jarver.outputs.jar_version }}
         run: |
           # Gradle's bundleNatives task copies from nativesDir into resources
           ./gradlew jar -PnativesDir=${{ github.workspace }}/natives-staging
@@ -162,6 +178,7 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          JAR_VERSION: ${{ steps.jarver.outputs.jar_version }}
         run: ./gradlew publish
 
       - name: Upload JAR artifact for github-release
