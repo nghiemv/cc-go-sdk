@@ -43,6 +43,16 @@ tasks.named('processResources') {
     dependsOn 'bundleNatives'
 }
 
+// sourcesJar reads src/main/resources (via allSource), and bundleNatives
+// writes into the same directory. Gradle 8.14+ refuses to run them in an
+// undefined order, so make the dependency explicit. Also exclude the
+// natives from the sources JAR — a sources JAR is meant for IDE "go to
+// source" navigation and should not carry ~60MB of compiled binaries.
+tasks.named('sourcesJar') {
+    dependsOn 'bundleNatives'
+    exclude 'natives/**'
+}
+
 publishing {
     publications {
         maven(MavenPublication) {
