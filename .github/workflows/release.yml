@@ -51,37 +51,19 @@ jobs:
           path: cc-sdk-*
 
   # -----------------------------------------------------------
-  # Step 2: GitHub Release with raw binaries
+  # Step 2: Build platform-specific Python wheels
+  #
+  # Each wheel bundles the cc-sdk binary next to cc.py so that
+  # _bin() in cc.py finds it inside site-packages at runtime.
+  # Wheels are uploaded as workflow artifacts and then attached
+  # to the GitHub Release in Step 3 — there is no separate index
+  # server; the Release itself is the index (consumers use
+  # pip install --find-links <releases/expanded_assets/vTAG>).
   # -----------------------------------------------------------
-  github-release:
-    name: GitHub Release
+  build-wheels:
+    name: Build wheel (${{ matrix.goos }}/${{ matrix.goarch }})
     needs: build-binary
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: binary-*
-          merge-multiple: true
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: cc-sdk-*
-          generate_release_notes: true
-
-  # -----------------------------------------------------------
-  # Step 3: Publish Python wheel to GitHub Packages
-  #
-  # One package per platform: cc-sdk wheel includes cc.py + binary.
-  #
-  # Consumers:
-  #   pip install cc-sdk --index-url https://ghcr.io/USACE/cc-go-sdk/simple/
-  # -----------------------------------------------------------
-  publish-python:
-    name: GitHub Packages cc-sdk (${{ matrix.goos }}/${{ matrix.goarch }})
-    needs: build-binary
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
     strategy:
       matrix:
         include:
@@ -107,7 +89,7 @@ jobs:
 
       - name: Build platform wheel
         run: |
-          pip install setuptools wheel twine
+          pip install setuptools wheel
           ext=""
           if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
           python clients/python/build_wheel.py \
@@ -115,12 +97,46 @@ jobs:
             ${{ matrix.goos }} \
             ${{ matrix.goarch }}
 
-      - name: Publish to GitHub Packages
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          TWINE_REPOSITORY_URL: https://ghcr.io/USACE/cc-go-sdk
-        run: twine upload clients/python/dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: clients/python/dist/*.whl
+
+  # -----------------------------------------------------------
+  # Step 3: GitHub Release with raw binaries + Python wheels
+  #
+  # Consumers install the Python client via:
+  #   pip install \
+  #     --find-links https://github.com/${{ github.repository }}/releases/expanded_assets/vX.Y.Z \
+  #     cc-sdk==X.Y.Z
+  #
+  # Works in forks automatically — the release lives on whichever
+  # repo pushed the tag, so fork tags publish to fork releases.
+  # -----------------------------------------------------------
+  github-release:
+    name: GitHub Release
+    needs: [build-binary, build-wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: release-assets
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -la release-assets/
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
 
   # -----------------------------------------------------------
   # Step 4: Publish Java JAR to GitHub Packages (Maven)
@@ -128,17 +144,24 @@ jobs:
   # JAR includes all platform binaries in resources/natives/.
   # CcSdk.java auto-extracts the right one at runtime.
   #
-  # Maintainer setup: none — GitHub Packages works automatically.
-  # Consumers add to build.gradle:
-  #   repositories { maven { url "https://maven.pkg.github.com/USACE/cc-go-sdk" } }
+  # Maven coordinates and URLs are parameterized via env so a
+  # fork publishes to its own repo's GitHub Packages without
+  # code changes. Consumers add to build.gradle:
+  #   repositories {
+  #     maven { url "https://maven.pkg.github.com/<owner>/cc-go-sdk" }
+  #   }
   #   dependencies { implementation 'mil.army.usace:cc-sdk:2.0.0' }
+  #
+  # Runs after github-release so the JAR appends to the existing
+  # release rather than racing to create it.
   # -----------------------------------------------------------
   publish-java:
     name: Maven cc-sdk
-    needs: build-binary
+    needs: github-release
     runs-on: ubuntu-latest
     permissions:
       packages: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -158,6 +181,7 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           # Gradle's bundleNatives task copies from nativesDir into resources
           gradle jar -PnativesDir=${{ github.workspace }}/natives-staging
@@ -167,9 +191,10 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: gradle publish
 
-      - name: Upload JAR to GitHub Release too
+      - name: Append JAR to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: clients/java/build/libs/cc-sdk-*.jar
